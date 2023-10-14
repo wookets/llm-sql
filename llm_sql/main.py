@@ -13,13 +13,14 @@ def main():
   # connect to db
   with PostgresDBManager() as db:
     db.connect_with_url(DATABASE_URL)
-    print(db.get_all_table_names())
-    print(db.get_table_definition('users'))
-    print(db.get_table_definitions_for_prompt())
 
-    # db.upsert("users", {"id": 1, "name": "Alice"})
-    # print(db.get("users", 1))
-    # db.delete("users", 1)
+    db.upsert("users", {"id": 1, "name": "Alice"})
+    print(db.get("users", 1))
+    db.delete("users", 1)
+
+    print(db.get_all_table_names())
+    # print(db.get_table_definition('users'))
+    # print(db.get_table_definitions_for_prompt())
   pass
 
 if __name__ == 'main':

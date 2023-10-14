@@ -18,6 +18,7 @@ get_all_table_names() - get all table names in the database as a string list
 get_table_definitions_for_prompt() - combine get_table_definition() and get_all_table_names() to get a list of table definitons in a 'create table' format for all tables in the database as a string that can be used for llm prompt
 '''
 import psycopg2
+from psycopg2 import sql
 
 class PostgresDBManager:
     def __init__(self):
@@ -38,10 +39,29 @@ class PostgresDBManager:
         self.cursor = self.conn.cursor()
 
     def upsert(self, table_name, _dict):
-        cols = ", ".join(_dict.keys())
-        values = list(_dict.values())
+        columns = ", ".join(_dict.keys())
+        values = [str(value) for value in _dict.values()]
         updates = ", ".join(f"{col} = EXCLUDED.{col}" for col in _dict.keys())
-        self.cursor.execute(f"INSERT INTO {table_name} ({cols}) VALUES %s ON CONFLICT (id) DO UPDATE SET {updates};", (values,))
+        # Create SQL for INSERT
+        insert_sql = sql.SQL("INSERT INTO {} ({}) VALUES ({})").format(
+            sql.Identifier(table_name),
+            sql.SQL(', ').join(map(sql.Identifier, columns)),
+            sql.SQL(', ').join(map(sql.Placeholder, columns))
+        )
+        # Create SQL for UPDATE
+        update_sql = sql.SQL("ON CONFLICT (id) DO UPDATE SET {}").format(
+            sql.SQL(', ').join(
+                sql.SQL('{} = EXCLUDED.{}').format(
+                    sql.Identifier(column),
+                    sql.Identifier(column)
+                ) for column in columns if column != 'id'
+            )
+        )
+        # Combine INSERT and UPDATE for UPSERT
+        upsert_sql = sql.SQL("{} {}").format(insert_sql, update_sql)
+        # Execute UPSERT
+        self.cursor.execute(upsert_sql, _dict)
+        #self.cursor.execute(f"INSERT INTO {table_name} ({cols}) VALUES {(values,)} ON CONFLICT (id) DO UPDATE SET {updates};")
         self.conn.commit()
 
     def delete(self, table_name, id):
